@@ -1,0 +1,38 @@
+name: Build MsM.Tv APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'MsM_Tv_mobile_androidtv_source.zip'
+      - '.github/workflows/android.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract project
+        run: |
+          unzip -q MsM_Tv_mobile_androidtv_source.zip -d source
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APKs
+        run: |
+          gradle -p source/MsM.Tv-main/android assembleMobileDebug assembleTvDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MsM-Tv-APKs
+          path: |
+            source/MsM.Tv-main/android/app/build/outputs/apk/mobile/debug/*.apk
+            source/MsM.Tv-main/android/app/build/outputs/apk/tv/debug/*.apk
