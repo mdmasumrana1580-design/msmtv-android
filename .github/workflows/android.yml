@@ -3,12 +3,16 @@ name: Build MsM.Tv APK
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Find and extract ZIP
         run: |
@@ -18,39 +22,23 @@ jobs:
             ls -la
             exit 1
           fi
-          echo "Found: $ZIP"
           mkdir source
           unzip -q "$ZIP" -d source
-          find source -maxdepth 3 -type f -name settings.gradle
+          find source -name build.gradle -path '*/app/build.gradle'
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Build APKs
-        run: |
-          gradle -p source/MsM.Tv-main/android assembleMobileDebug assembleTvDebug
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: MsM-Tv-APKs
-          path: |
-            source/MsM.Tv-main/android/app/build/outputs/apk/mobile/debug/*.apk
-            source/MsM.Tv-main/android/app/build/outputs/apk/tv/debug/*.apk
-- name: Fix Java and Kotlin versions
+      - name: Fix Java and Kotlin versions
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("source/MsM.Tv-main/android/app/build.gradle")
+
+          files = list(Path("source").glob("**/app/build.gradle"))
+          if not files:
+              raise SystemExit("App build.gradle not found")
+
+          p = files[0]
           s = p.read_text()
-          s = s.replace(
-              "android {",
-              """android {
+
+          block = """android {
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
@@ -58,8 +46,39 @@ jobs:
               kotlinOptions {
                   jvmTarget = '17'
               }
-          """,
-              1
-          )
+          """
+
+          if "compileOptions" not in s:
+              s = s.replace("android {", block, 1)
+
           p.write_text(s)
+          print("Updated:", p)
           PY
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APKs
+        run: |
+          DIR=$(find source -type f -name settings.gradle | head -n 1)
+          if [ -z "$DIR" ]; then
+            echo "settings.gradle not found"
+            exit 1
+          fi
+          gradle -p "$(dirname "$DIR")" assembleMobileDebug assembleTvDebug
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: MsM-Tv-APKs
+          path: |
+            source/**/app/build/outputs/apk/mobile/debug/*.apk
+            source/**/app/build/outputs/apk/tv/debug/*.apk
