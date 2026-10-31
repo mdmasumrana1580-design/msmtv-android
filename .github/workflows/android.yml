@@ -3,9 +3,6 @@ name: Build MsM.Tv APK
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'MsM_Tv_mobile_androidtv_source.zip'
-      - '.github/workflows/android.yml'
 
 jobs:
   build:
@@ -13,9 +10,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract project
+      - name: Find and extract ZIP
         run: |
-          unzip -q MsM_Tv_mobile_androidtv_source.zip -d source
+          ZIP=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
+          if [ -z "$ZIP" ]; then
+            echo "ZIP file not found"
+            ls -la
+            exit 1
+          fi
+          echo "Found: $ZIP"
+          mkdir source
+          unzip -q "$ZIP" -d source
+          find source -maxdepth 3 -type f -name settings.gradle
 
       - uses: actions/setup-java@v4
         with:
